@@ -235,8 +235,30 @@ pub async fn create_block(
 ) -> Result<Json<ApiResponse<BlockInfo>>, StatusCode> {
     let keypair = CryptoKeypair::generate();
     
+    // Get parent blocks from cache (select recent tips)
+    let parents = {
+        let cache = state.network_node.block_cache.read().await;
+        let mut blocks: Vec<(&String, &TangleBlock)> = cache.iter().collect();
+        
+        // Sort by timestamp (most recent first)
+        blocks.sort_by(|a, b| b.1.data.data.timestamp.cmp(&a.1.data.data.timestamp));
+        
+        // Select 1-2 most recent blocks as parents (tip selection algorithm)
+        if blocks.is_empty() {
+            vec![] // Genesis block has no parents
+        } else if blocks.len() == 1 {
+            vec![blocks[0].0.clone()] // Reference the single existing block
+        } else {
+            // Select the two most recent blocks as parents
+            vec![
+                blocks[0].0.clone(),
+                blocks[1].0.clone(),
+            ]
+        }
+    };
+    
     let data = TangleBlockData {
-        parents: vec![],
+        parents,
         data: request.sensor_data,
     };
     
