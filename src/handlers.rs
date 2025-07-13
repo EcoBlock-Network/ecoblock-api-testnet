@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, Query, State, WebSocketUpgrade},
+    extract::{Path, State, WebSocketUpgrade},
     http::StatusCode,
     response::{Json, Response},
     routing::{get, post},
@@ -7,15 +7,13 @@ use axum::{
 };
 use serde_json::json;
 use std::sync::{Arc, RwLock};
-use std::collections::HashMap;
 
 use crate::models::*;
 use crate::websocket::WebSocketManager;
-use ecoblock_network::NetworkNode;
-use ecoblock_core::SensorData;
-use ecoblock_crypto::keys::keypair::CryptoKeypair;
-use ecoblock_storage::tangle::block::TangleBlock;
 use ecoblock_core::TangleBlockData;
+use ecoblock_crypto::keys::keypair::CryptoKeypair;
+use ecoblock_network::NetworkNode;
+use ecoblock_storage::tangle::block::TangleBlock;
 
 pub type SharedState = Arc<NetworkNode>;
 
@@ -61,26 +59,21 @@ pub fn create_router(state: SharedState) -> Router {
 
     Router::new()
         .route("/ws", get(websocket_handler))
-        
         .route("/api/network/info", get(get_network_info))
         .route("/api/network/peers", get(get_peers))
         .route("/api/network/metrics", get(get_network_metrics))
         .route("/api/network/stats", get(get_network_stats))
-        
         .route("/api/blocks", get(get_blocks))
         .route("/api/blocks/:hash", get(get_block))
         .route("/api/blocks", post(create_block))
         .route("/api/blocks/:hash/send", post(send_block))
-        
         .route("/api/simulation/config", get(get_simulation_config))
         .route("/api/simulation/config", post(set_simulation_config))
         .route("/api/simulation/start", post(start_simulation))
         .route("/api/simulation/stop", post(stop_simulation))
         .route("/api/simulation/status", get(get_simulation_status))
-        
         .route("/api/health", get(health_check))
         .route("/api/version", get(get_version))
-        
         .with_state(app_state)
 }
 
@@ -89,14 +82,17 @@ pub async fn websocket_handler(
     ws: WebSocketUpgrade,
     State(state): State<Arc<AppState>>,
 ) -> Response {
-    state.websocket_manager.handle_upgrade(ws, state.network_stats.clone()).await
+    state
+        .websocket_manager
+        .handle_upgrade(ws, state.network_stats.clone())
+        .await
 }
 
 pub async fn get_network_info(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<ApiResponse<NetworkInfo>>, StatusCode> {
     let stats = state.network_node.get_network_stats().await;
-    
+
     let info = NetworkInfo {
         node_id: stats.node_id.0.to_string(),
         peer_count: stats.peer_count,
@@ -106,7 +102,7 @@ pub async fn get_network_info(
         version: "0.1.0".to_string(),
         network_type: "mesh".to_string(),
     };
-    
+
     Ok(Json(ApiResponse::success(info)))
 }
 
@@ -114,7 +110,7 @@ pub async fn get_peers(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<ApiResponse<Vec<PeerInfo>>>, StatusCode> {
     let peers = state.network_node.peer_discovery.get_peers().await;
-    
+
     let peer_infos: Vec<PeerInfo> = peers
         .into_iter()
         .map(|(id, info)| PeerInfo {
@@ -125,7 +121,7 @@ pub async fn get_peers(
             latency: info.latency,
         })
         .collect();
-    
+
     Ok(Json(ApiResponse::success(peer_infos)))
 }
 
@@ -134,19 +130,16 @@ pub async fn get_network_metrics(
 ) -> Result<Json<ApiResponse<NetworkMetrics>>, StatusCode> {
     let stats = state.network_node.get_network_stats().await;
     let peers = state.network_node.peer_discovery.get_peers().await;
-    
-    let total_latency: u64 = peers
-        .values()
-        .filter_map(|p| p.latency)
-        .sum();
-    
+
+    let total_latency: u64 = peers.values().filter_map(|p| p.latency).sum();
+
     let active_peers = peers.len();
     let average_latency = if active_peers > 0 {
         total_latency as f64 / active_peers as f64
     } else {
         0.0
     };
-    
+
     let metrics = NetworkMetrics {
         total_blocks: stats.block_count,
         blocks_per_minute: 0.0,
@@ -160,7 +153,7 @@ pub async fn get_network_metrics(
         bytes_sent: 0,
         bytes_received: 0,
     };
-    
+
     Ok(Json(ApiResponse::success(metrics)))
 }
 
@@ -169,7 +162,7 @@ pub async fn get_network_stats(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, StatusCode> {
     let stats = state.network_node.get_network_stats().await;
     let peers = state.network_node.peer_discovery.get_peers().await;
-    
+
     let response = json!({
         "node_id": stats.node_id.0.to_string(),
         "peer_count": stats.peer_count,
@@ -185,7 +178,7 @@ pub async fn get_network_stats(
             })
         }).collect::<Vec<_>>()
     });
-    
+
     Ok(Json(ApiResponse::success(response)))
 }
 
@@ -193,7 +186,7 @@ pub async fn get_blocks(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<ApiResponse<Vec<BlockInfo>>>, StatusCode> {
     let blocks = state.network_node.block_cache.read().await;
-    
+
     let block_infos: Vec<BlockInfo> = blocks
         .values()
         .map(|block| BlockInfo {
@@ -204,7 +197,7 @@ pub async fn get_blocks(
             parent_hashes: block.data.parents.clone(),
         })
         .collect();
-    
+
     Ok(Json(ApiResponse::success(block_infos)))
 }
 
@@ -213,7 +206,7 @@ pub async fn get_block(
     Path(hash): Path<String>,
 ) -> Result<Json<ApiResponse<BlockInfo>>, StatusCode> {
     let blocks = state.network_node.block_cache.read().await;
-    
+
     match blocks.get(&hash) {
         Some(block) => {
             let block_info = BlockInfo {
@@ -234,15 +227,15 @@ pub async fn create_block(
     Json(request): Json<CreateBlockRequest>,
 ) -> Result<Json<ApiResponse<BlockInfo>>, StatusCode> {
     let keypair = CryptoKeypair::generate();
-    
+
     // Get parent blocks from cache (select recent tips)
     let parents = {
         let cache = state.network_node.block_cache.read().await;
         let mut blocks: Vec<(&String, &TangleBlock)> = cache.iter().collect();
-        
+
         // Sort by timestamp (most recent first)
         blocks.sort_by(|a, b| b.1.data.data.timestamp.cmp(&a.1.data.data.timestamp));
-        
+
         // Select 1-2 most recent blocks as parents (tip selection algorithm)
         if blocks.is_empty() {
             vec![] // Genesis block has no parents
@@ -250,25 +243,22 @@ pub async fn create_block(
             vec![blocks[0].0.clone()] // Reference the single existing block
         } else {
             // Select the two most recent blocks as parents
-            vec![
-                blocks[0].0.clone(),
-                blocks[1].0.clone(),
-            ]
+            vec![blocks[0].0.clone(), blocks[1].0.clone()]
         }
     };
-    
+
     let data = TangleBlockData {
         parents,
         data: request.sensor_data,
     };
-    
+
     let block = TangleBlock::new(data, &keypair);
-    
+
     {
         let mut cache = state.network_node.block_cache.write().await;
         cache.insert(block.id.clone(), block.clone());
     }
-    
+
     let block_info = BlockInfo {
         hash: block.id.clone(),
         timestamp: block.data.data.timestamp,
@@ -276,7 +266,7 @@ pub async fn create_block(
         signature: block.signature.0.clone(),
         parent_hashes: block.data.parents.clone(),
     };
-    
+
     Ok(Json(ApiResponse::success(block_info)))
 }
 
@@ -286,13 +276,18 @@ pub async fn send_block(
     Json(request): Json<SendBlockRequest>,
 ) -> Result<Json<ApiResponse<String>>, StatusCode> {
     let blocks = state.network_node.block_cache.read().await;
-    
+
     match blocks.get(&hash) {
         Some(block) => {
             if let Err(e) = state.network_node.broadcast_block(block.clone()).await {
-                return Ok(Json(ApiResponse::error(format!("Failed to send block: {}", e))));
+                return Ok(Json(ApiResponse::error(format!(
+                    "Failed to send block: {}",
+                    e
+                ))));
             }
-            Ok(Json(ApiResponse::success("Block sent successfully".to_string())))
+            Ok(Json(ApiResponse::success(
+                "Block sent successfully".to_string(),
+            )))
         }
         None => Err(StatusCode::NOT_FOUND),
     }
@@ -311,7 +306,9 @@ pub async fn get_simulation_config() -> Result<Json<ApiResponse<SimulationConfig
 pub async fn set_simulation_config(
     Json(config): Json<SimulationConfig>,
 ) -> Result<Json<ApiResponse<String>>, StatusCode> {
-    Ok(Json(ApiResponse::success("Configuration updated".to_string())))
+    Ok(Json(ApiResponse::success(
+        "Configuration updated".to_string(),
+    )))
 }
 
 pub async fn start_simulation() -> Result<Json<ApiResponse<String>>, StatusCode> {

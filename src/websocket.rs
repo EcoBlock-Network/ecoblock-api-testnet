@@ -39,9 +39,9 @@ impl WebSocketManager {
         network_stats: Arc<RwLock<crate::models::ApiNetworkStats>>,
     ) -> Response {
         let manager = self.clone();
-        ws.on_upgrade(move |socket| async move {
-            manager.handle_socket(socket, network_stats).await
-        })
+        ws.on_upgrade(
+            move |socket| async move { manager.handle_socket(socket, network_stats).await },
+        )
     }
 
     async fn handle_socket(
