@@ -15,6 +15,5 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Start the server
     let addr = "127.0.0.1:3000".parse()?;
     start_api_server(network_node, addr).await?;
-    
     Ok(())
 }
