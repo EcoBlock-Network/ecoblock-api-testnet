@@ -7,8 +7,7 @@ edition = "2021"
 ecoblock_core = { path = "../ecoblock-core" }
 ecoblock_crypto = { path = "../ecoblock-crypto" }
 ecoblock-storage = { path = "../ecoblock-storage" }
-ecoblock-network = { path = "../ecoblock-network" }
-ecoblock-logger = { path = "../ecoblock-logger" }
+ecoblock_network = { path = "../ecoblock-network" }
 
 # Web framework
 axum = { version = "0.7", features = ["ws"] }

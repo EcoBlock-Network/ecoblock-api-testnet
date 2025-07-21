@@ -10,10 +10,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🚀 Starting EcoBlock API Server...");
     
     // Create network node
-    let network_node = Arc::new(NetworkNode::new(3001, 3002).await?);
+    let network_node = Arc::new(NetworkNode::new(3000, 3002).await?);
     
     // Start the server
-    let addr = "127.0.0.1:3001".parse()?;
+    let addr = "127.0.0.1:3000".parse()?;
     start_api_server(network_node, addr).await?;
     
     Ok(())
